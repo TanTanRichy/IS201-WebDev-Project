@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dodge Game</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    body {
+      background: linear-gradient(to top, #f2709c, #ff9472);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: #333;
+      overflow: hidden;
+    }
+
+    #gameContainer {
+      text-align: center;
+    }
+
+    canvas {
+      border: 4px solid #fff;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      display: block;
+      margin: 0 auto;
+    }
+
+    #ui {
+      margin-top: 10px;
+      font-size: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    #overlay, #gameOver {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 10;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-top: 20px;
+      border: none;
+      background: #ff7676;
+      color: white;
+      font-size: 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #ff5252;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="ui">
+      <div>Score: <span id="score">0</span></div>
+    </div>
+    <div id="overlay">
+      <h2>Instructions</h2>
+      <p>Use the ← and → arrow keys to move.</p>
+      <p>Avoid the falling balls.</p>
+      <p>Press the spacebar to pause.</p>
+      <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="gameOver" style="display: none;">
+      <h2>Game Over!</h2>
+      <p>Your final score: <span id="finalScore">0</span></p>
+      <button onclick="startGame()">Play Again</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const player = {
+      x: canvas.width / 2 - 20,
+      y: canvas.height - 40,
+      width: 40,
+      height: 20,
+      color: "#00ffff",
+      speed: 6
+    };
+
+    const keys = {};
+    let fallingBalls = [];
+    let score = 0;
+    let paused = false;
+    let speed = 2;
+    let gameInterval;
+
+    function randomX(existingBalls) {
+      let x;
+      let tries = 0;
+      do {
+        x = Math.random() * (canvas.width - 20);
+        tries++;
+        if (tries > 50) break;
+      } while (existingBalls.some(ball => Math.abs(ball.x - x) < 20));
+      return x;
+    }
+
+    function addBall() {
+  if (paused || fallingBalls.length >= 25) return;
+  for (let i = 0; i < 5; i++) {
+    fallingBalls.push({
+      x: randomX(fallingBalls),
+      y: -Math.random() * 100 - 20, // Randomize the Y position within a range
+      radius: 12,
+      color: "#2c3e50",
+      fallSpeed: Math.random() * 2 + 1 // Randomize the falling speed
+    });
+  }
+}
+
+    function resetGame() {
+      fallingBalls = [];
+      score = 0;
+      speed = 2;
+      player.x = canvas.width / 2 - 20;
+      document.getElementById("score").textContent = score;
+    }
+
+    function startGame() {
+      document.getElementById("overlay").style.display = "none";
+      document.getElementById("gameOver").style.display = "none";
+      resetGame();
+      paused = false;
+      gameLoop();
+      if (gameInterval) clearInterval(gameInterval);
+      gameInterval = setInterval(addBall, 1000); // More frequent balls
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = player.color;
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+    }
+
+    function drawBall(ball) {
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = ball.color;
+      ctx.fill();
+      ctx.closePath();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPlayer();
+      fallingBalls.forEach(drawBall);
+    }
+
+    function update() {
+      if (keys["ArrowLeft"]) player.x -= player.speed;
+      if (keys["ArrowRight"]) player.x += player.speed;
+
+      player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+
+      fallingBalls.forEach(ball => {
+        ball.y += speed;
+
+        const isHit =
+          ball.y + ball.radius > player.y &&
+          ball.y - ball.radius < player.y + player.height &&
+          ball.x + ball.radius > player.x &&
+          ball.x - ball.radius < player.x + player.width;
+
+        if (isHit) {
+          endGame();
+        }
+
+        if (ball.y > canvas.height) {
+          score += 5;
+        }
+      });
+
+      fallingBalls = fallingBalls.filter(ball => ball.y <= canvas.height);
+      speed = Math.min(speed + 0.0025, 6);
+      document.getElementById("score").textContent = score;
+    }
+
+    function endGame() {
+      paused = true;
+      clearInterval(gameInterval);
+      document.getElementById("finalScore").textContent = score;
+      document.getElementById("gameOver").style.display = "flex";
+    }
+
+    function gameLoop() {
+      if (!paused) {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    window.addEventListener("keydown", e => {
+      if (e.code === "Space") {
+        paused = !paused;
+        if (!paused) gameLoop();
+      } else {
+        keys[e.key] = true;
+      }
+    });
+
+    window.addEventListener("keyup", e => {
+      keys[e.key] = false;
+    });
+  </script>
+</body>
+</html>
